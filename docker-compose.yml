@@ -1,0 +1,71 @@
+version: "3.9"
+services:
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"
+
+  guusto-registry:
+    hostname: guusto-registry
+    restart: always
+    ports:
+      - "8761:8761"
+    build:
+      context: ./guusto-registry
+      dockerfile: Dockerfile
+    environment:
+      eureka.instance.hostname: guusto-registry
+    networks:
+      - service-discovery-network
+
+  guustoservice:
+    container_name: guustoservice
+    restart: on-failure
+    ports:
+      - '8078:8078'
+    build:
+      context: ./guusto-service
+      dockerfile: Dockerfile
+    networks:
+      - service-discovery-network
+      - guusto-mysql
+    environment:
+      JAVA_OPTS: -DEUREKA_SERVER=http://guusto-registry:8761/eureka
+      eureka.client.service-url.default-zone: http://guusto-registry:8761/eureka
+    depends_on:
+      - guusto-registry
+      - mysqldb
+
+  balanceservice:
+    container_name: balanceservice
+    restart: on-failure
+    ports:
+      - '8079:8079'
+    build:
+      context: ./balance-service
+      dockerfile: Dockerfile
+    networks:
+      - service-discovery-network
+      - guusto-mysql
+    environment:
+      JAVA_OPTS: -DEUREKA_SERVER=http://guusto-registry:8761/eureka
+      eureka.client.service-url.default-zone: http://guusto-registry:8761/eureka
+    depends_on:
+      - mysqldb
+      - guusto-registry
+      - guustoservice
+
+  mysqldb:
+    image: mysql:8
+    networks:
+      - guusto-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=4uu750
+      - MYSQL_DATABASE=guustoservice
+
+networks:
+  service-discovery-network:
+    name: service-discovery-network
+    attachable: true
+    driver: bridge
+  guusto-mysql:
