@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -64,5 +66,23 @@ public class GiftCardService {
                 .totalCost(giftCardTransaction.getTotalAmount())
                 .datePurchased(giftCardTransaction.getCreatedAt())
                 .build();
+    }
+
+    public List<BuyGiftCardResponse> fetchAllTransactionsForClient(Long clientId) {
+        Client client = restTemplate.getForObject("http://BALANCE-SERVICE/balance/{clientId}", Client.class, clientId);
+        if (client == null) {
+            throw new ClientNotFoundException(String.format("Client with ID %d not found", clientId));
+        }
+
+        return transactionRepository.findGiftCardTransactionsByClientId(client).stream()
+                .map((giftCardTransaction) -> {
+                    BuyGiftCardResponse buyGiftCardResponse = new BuyGiftCardResponse();
+                    buyGiftCardResponse.setBalance(BigDecimal.valueOf(client.getBalance()));
+                    buyGiftCardResponse.setQuantity(giftCardTransaction.getQuantity());
+                    buyGiftCardResponse.setTotalCost(giftCardTransaction.getTotalAmount());
+                    buyGiftCardResponse.setDatePurchased(giftCardTransaction.getCreatedAt());
+
+                    return buyGiftCardResponse;
+                }).collect(Collectors.toList());
     }
 }
